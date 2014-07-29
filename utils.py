@@ -28,8 +28,8 @@ def run_hook(hook_name):
     return
 
 
-def load_config(app, config_name="config"):
-    app.config.from_object(config_name)
+def load_config(app, config_name="config.py"):
+    app.config.from_pyfile(config_name)
     app.config.setdefault("AUTO_INDEX", True)
     app.config.setdefault("HOST", None)
     app.config.setdefault("PORT", None)
