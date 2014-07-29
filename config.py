@@ -1,7 +1,7 @@
 #coding=utf-8
 from __future__ import absolute_import
 
-DEBUG = True
+DEBUG = False
 PORT = 5000
 AUTO_INDEX = True
 
