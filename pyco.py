@@ -11,7 +11,7 @@ CONTENT_FILE_EXT = ".md"
 import sys
 sys.path.insert(0, PLUGIN_DIR)
 
-from flask import Flask, current_app, request, abort, render_template, g, make_response
+from flask import Flask, current_app, request, abort, render_template, g, make_response, url_for
 from flask.views import MethodView
 import os
 import re
@@ -264,6 +264,7 @@ load_config(app)
 app.static_folder = STATIC_DIR
 app.template_folder = THEME_DIR
 auto_index = app.config.get("AUTO_INDEX")
+app.add_url_rule("/favicon.ico", redirect_to="/static/favicon.ico", endpoint="favicon.ico")
 app.add_url_rule("/", defaults={"_": "", "is_index": auto_index}, view_func=ContentView.as_view("index"))
 app.add_url_rule("/<path:_>", view_func=ContentView.as_view("content"))
 
