@@ -11,7 +11,7 @@ CONTENT_FILE_EXT = ".md"
 import sys
 sys.path.insert(0, PLUGIN_DIR)
 
-from flask import Flask, current_app, request, abort, render_template, g, make_response, url_for
+from flask import Flask, current_app, request, abort, render_template, g, make_response
 from flask.views import MethodView
 import os
 import re
