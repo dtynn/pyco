@@ -28,7 +28,7 @@ from flask import Flask, current_app, request, abort, render_template, g, make_r
 from flask.views import MethodView
 import os
 import re
-from utils import load_config, load_plugins
+from utils import load_config, load_plugins, make_content_response
 from collections import defaultdict
 import markdown
 from hashlib import sha1
@@ -91,11 +91,15 @@ class BaseView(MethodView):
 
     # cache
     @staticmethod
-    def get_cache_file_path(content_file_full_path):
+    def generate_etag(content_file_full_path):
         file_stat = os.stat(content_file_full_path)
         base = "{mtime:0.0f}_{size:d}_{fpath}".format(mtime=file_stat.st_mtime, size=file_stat.st_size,
                                                       fpath=content_file_full_path)
-        cache_path = os.path.join(CACHE_DIR, "{}{}".format(sha1(base).hexdigest(), CACHE_FILE_EXT))
+        return sha1(base).hexdigest()
+
+    def get_cache_file_path(self, content_file_full_path):
+        cache_path = os.path.join(CACHE_DIR,
+                                  "{}{}".format(self.generate_etag(content_file_full_path), CACHE_FILE_EXT))
         return cache_path
 
     def check_cache(self, content_file_full_path):
@@ -208,6 +212,7 @@ class ContentView(BaseView):
         cache_full_path = None
         enable_cache = current_app.config.get("ENABLE_CACHE")
         run_hook = self.run_hook
+        etag = None
 
         # load
         load_plugins()
@@ -234,11 +239,15 @@ class ContentView(BaseView):
                     # without not found file
                     abort(404)
 
+            etag = self.generate_etag(content_file_full_path)
+
             # read cache content
             if enable_cache:
                 cache_full_path, cache_exists = self.check_cache(content_file_full_path)
                 if cache_exists:
-                    return send_file(cache_full_path, mimetype="text/html; charset=utf-8")
+                    with open(cache_full_path) as f_cache:
+                        output = f_cache.read()
+                    return make_content_response(output, status_code, etag)
 
             # read file content
             if is_not_found:
@@ -294,7 +303,7 @@ class ContentView(BaseView):
         if enable_cache and cache_full_path:
             self.save_cache(cache_full_path, g.view_ctx["output"])
 
-        return make_response(g.view_ctx["output"], status_code)
+        return make_content_response(g.view_ctx["output"], status_code, etag)
 
 
 app = Flask(__name__, static_url_path=STATIC_BASE_URL)

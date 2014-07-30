@@ -1,6 +1,6 @@
 #coding=utf-8
 from __future__ import absolute_import
-from flask import current_app, g
+from flask import current_app, g, make_response
 from types import ModuleType
 
 
@@ -35,3 +35,12 @@ def load_config(app, config_name="config.py"):
     app.config.setdefault("IGNORE_FILES", [])
     app.config.setdefault("THEME_NAME", "default")
     return
+
+
+def make_content_response(output, status_code, etag):
+    response = make_response(output, status_code)
+    response.cache_control.public = "public"
+    response.cache_control.max_age = 600
+    if etag is not None:
+        response.set_etag(etag)
+    return response
