@@ -245,9 +245,7 @@ class ContentView(BaseView):
             if enable_cache:
                 cache_full_path, cache_exists = self.check_cache(content_file_full_path)
                 if cache_exists:
-                    with open(cache_full_path) as f_cache:
-                        output = f_cache.read()
-                    return make_content_response(output, status_code, etag)
+                    return send_file(cache_full_path, mimetype="text/html; charset=utf-8")
 
             # read file content
             if is_not_found:
