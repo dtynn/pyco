@@ -43,6 +43,10 @@ class BaseView(MethodView):
     def check_is_file(filename):
         return os.path.isfile(filename)
 
+    def check_tmpl_exists(self, theme_path):
+        theme_full_path = os.path.join(THEME_DIR, theme_path)
+        return self.check_is_file(theme_full_path)
+
     # site property
     @property
     def site_title(self):
@@ -251,7 +255,7 @@ class ContentView(BaseView):
         run_hook("get_pages")
 
         g.view_ctx["template_file_path"] = self.theme_file_path("index") if is_index \
-            else self.theme_file_path(g.view_ctx["meta"].get("template", "post"))
+            else self.theme_file_path(g.view_ctx["meta"].get("template", "post1"))
 
         run_hook("before_render")
         g.view_ctx["output"] = render_template(g.view_ctx["template_file_path"], **g.view_ctx)
@@ -264,7 +268,7 @@ load_config(app)
 app.static_folder = STATIC_DIR
 app.template_folder = THEME_DIR
 auto_index = app.config.get("AUTO_INDEX")
-app.add_url_rule("/favicon.ico", redirect_to="/static/favicon.ico", endpoint="favicon.ico")
+app.add_url_rule("/favicon.ico", redirect_to="{}/favicon.ico".format(STATIC_BASE_URL), endpoint="favicon.ico")
 app.add_url_rule("/", defaults={"_": "", "is_index": auto_index}, view_func=ContentView.as_view("index"))
 app.add_url_rule("/<path:_>", view_func=ContentView.as_view("content"))
 
@@ -275,6 +279,13 @@ def injection():
     g.view_ctx = dict()
     g.view_ctx["tmp"] = dict()
     return
+
+
+@app.errorhandler(Exception)
+def errorhandler(err):
+    err_msg = "{}".format(repr(err))
+    current_app.logger.error(err_msg)
+    return make_response(err_msg, 579)
 
 
 if __name__ == "__main__":
