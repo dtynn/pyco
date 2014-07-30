@@ -7,17 +7,20 @@ THEME_DIR = "theme/"
 STATIC_DIR = "static/"
 STATIC_BASE_URL = "/static"
 CONTENT_FILE_EXT = ".md"
+CACHE_DIR = "cache/"
+CACHE_FILE_EXT = ".cache"
 
 import sys
 sys.path.insert(0, PLUGIN_DIR)
 
-from flask import Flask, current_app, request, abort, render_template, g, make_response
+from flask import Flask, current_app, request, abort, render_template, g, make_response, send_file, send_from_directory
 from flask.views import MethodView
 import os
 import re
 from utils import load_config, run_hook, load_plugins
 from collections import defaultdict
 import markdown
+from hashlib import sha1
 
 
 class BaseView(MethodView):
@@ -59,6 +62,32 @@ class BaseView(MethodView):
     @property
     def site_author(self):
         return current_app.config.get("SITE_AUTHOR")
+
+    # cache
+    @property
+    def enable_cache(self):
+        return current_app.config.get("ENABLE_CACHE")
+
+    @staticmethod
+    def get_cache_file_path(content_file_path):
+        file_stat = os.stat(content_file_path)
+        base = "{mtime:0.0f}_{size:d}_{fpath}".format(mtime=file_stat.st_mtime, size=file_stat.st_size,
+                                                      fpath=content_file_path)
+        cache_path = os.path.join(CACHE_DIR, "{}{}".format(sha1(base).hexdigest(), CACHE_FILE_EXT))
+        return cache_path
+
+    def check_cache(self, content_file_path):
+        cache_path = self.get_cache_file_path(content_file_path)
+        return cache_path, self.check_is_file(cache_path)
+
+    @staticmethod
+    def save_cache(cache_path, output):
+        if not os.path.isdir(CACHE_DIR):
+            os.mkdir(CACHE_DIR, 0755)
+        with open(cache_path, "wb") as f_cache:
+            f_cache.write(output.encode("utf8"))
+        f_cache.close()
+        return True
 
     # content
     @property
@@ -205,6 +234,8 @@ class ContentView(BaseView):
         g.view_ctx["request"] = request
         run_hook("request_url")
 
+        cache_path = None
+
         if not is_index:
             g.view_ctx["file_path"] = self.get_file_path(request_url)
             run_hook("before_load_content")
@@ -214,6 +245,12 @@ class ContentView(BaseView):
                     abort(404)
                 g.view_ctx["not_found_file_path"] = self.not_found_file_path
 
+                # cache
+                if self.enable_cache:
+                    cache_path, cache_exists = self.check_cache(g.view_ctx["not_found_file_path"])
+                    if cache_exists:
+                        return send_file(cache_path, mimetype="text/html; charset=utf-8")
+
                 run_hook("before_404_load_content")
                 with open(g.view_ctx["not_found_file_path"], "r") as f:
                     g.view_ctx["file_content"] = f.read().decode("utf8")
@@ -221,6 +258,11 @@ class ContentView(BaseView):
                 run_hook("after_404_load_content")
                 status_code = 404
             else:
+                # cache
+                if self.enable_cache:
+                    cache_path, cache_exists = self.check_cache(g.view_ctx["file_path"])
+                    if cache_exists:
+                        return send_file(cache_path, mimetype="text/html; charset=utf-8")
                 with open(g.view_ctx["file_path"], "r") as f:
                     g.view_ctx["file_content"] = f.read().decode("utf8")
 
@@ -255,11 +297,13 @@ class ContentView(BaseView):
         run_hook("get_pages")
 
         g.view_ctx["template_file_path"] = self.theme_file_path("index") if is_index \
-            else self.theme_file_path(g.view_ctx["meta"].get("template", "post1"))
+            else self.theme_file_path(g.view_ctx["meta"].get("template", "post"))
 
         run_hook("before_render")
         g.view_ctx["output"] = render_template(g.view_ctx["template_file_path"], **g.view_ctx)
         run_hook("after_render")
+        if self.enable_cache and cache_path:
+            self.save_cache(cache_path, g.view_ctx["output"])
         return make_response(g.view_ctx["output"], status_code)
 
 

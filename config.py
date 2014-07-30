@@ -5,6 +5,8 @@ DEBUG = False
 PORT = 5000
 AUTO_INDEX = True
 
+ENABLE_CACHE = True
+
 SITE_INDEX_FILE = "index"
 NOT_FOUND_FILE = "404"
 
@@ -18,5 +20,5 @@ POST_DATE_FORMAT = "%Y/%M/%d"
 THEME_NAME = "default"
 PLUGINS = ["pagination"]
 
-# for plugins
+# for pagination plugin
 PAGINATION_LIMIT = 10
