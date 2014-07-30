@@ -20,14 +20,6 @@ def load_plugins():
     return
 
 
-def run_hook(hook_name):
-    for plugin_module in g.plugins:
-        func = plugin_module.__dict__.get(hook_name)
-        if callable(func):
-            func()
-    return
-
-
 def load_config(app, config_name="config.py"):
     app.config.from_pyfile(config_name)
     app.config.setdefault("AUTO_INDEX", True)
@@ -40,9 +32,6 @@ def load_config(app, config_name="config.py"):
     app.config.setdefault("SITE_AUTHOR", "")
     app.config.setdefault("SITE_DESCRIPTION", "description")
     app.config.setdefault("PLUGINS", [])
-    app.config.setdefault("NOT_FOUND_FILE", "404")
-    app.config.setdefault("SITE_INDEX_FILE", "index")
-    app.config.setdefault("POST_DATE_FORMAT", "%Y/%M/%d")
     app.config.setdefault("IGNORE_FILES", [])
     app.config.setdefault("THEME_NAME", "default")
     return

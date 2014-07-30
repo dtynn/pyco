@@ -7,15 +7,14 @@ AUTO_INDEX = True
 
 ENABLE_CACHE = True
 
-SITE_INDEX_FILE = "index"
-NOT_FOUND_FILE = "404"
-
 SITE_TITLE = "TEST"
 BASE_URL = "/"
 SITE_AUTHOR = "DTynn"
 SITE_DESCRIPTION = "for test"
 
 POST_DATE_FORMAT = "%Y/%M/%d"
+
+IGNORE_FILES = ["index.md"]
 
 THEME_NAME = "default"
 PLUGINS = ["pagination"]

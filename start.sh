@@ -7,4 +7,4 @@ echo 'killed pyco.py at' $id
 done
 
 echo 'Starting'
-nohup python pyco.py >> out.log 2>&1 &
+nohup python pyco.py >> out.log &
