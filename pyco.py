@@ -25,7 +25,7 @@ from flask import Flask, current_app, request, abort, render_template, g, make_r
 from flask.views import MethodView
 import os
 import re
-from utils import load_config, load_plugins, make_content_response
+from pyco_utils import load_config, load_plugins, make_content_response
 from collections import defaultdict
 import markdown
 from hashlib import sha1
