@@ -16,9 +16,6 @@ CONTENT_FILE_EXT = ".md"
 CONTENT_DEFAULT_FILENAME = "index"
 CONTENT_NOT_FOUND_FILENAME = "404"
 
-CACHE_DIR = "cache/"
-CACHE_FILE_EXT = ".cache"
-
 CHARSET = "utf8"
 
 import sys
@@ -96,23 +93,6 @@ class BaseView(MethodView):
         base = "{mtime:0.0f}_{size:d}_{fpath}".format(mtime=file_stat.st_mtime, size=file_stat.st_size,
                                                       fpath=content_file_full_path)
         return sha1(base).hexdigest()
-
-    def get_cache_file_path(self, content_file_full_path):
-        cache_path = os.path.join(CACHE_DIR,
-                                  "{}{}".format(self.generate_etag(content_file_full_path), CACHE_FILE_EXT))
-        return cache_path
-
-    def check_cache(self, content_file_full_path):
-        cache_path = self.get_cache_file_path(content_file_full_path)
-        return cache_path, self.check_file_exists(cache_path)
-
-    @staticmethod
-    def save_cache(cache_path, output):
-        if not os.path.isdir(CACHE_DIR):
-            os.mkdir(CACHE_DIR, 0755)
-        with open(cache_path, "wb") as f_cache:
-            f_cache.write(output.encode(CHARSET))
-        return True
 
     # pages
     @staticmethod
@@ -209,10 +189,7 @@ class ContentView(BaseView):
         status_code = 200
         is_not_found = False
         content_file_full_path = None
-        cache_full_path = None
-        enable_cache = current_app.config.get("ENABLE_CACHE")
         run_hook = self.run_hook
-        etag = None
 
         # load
         load_plugins()
@@ -238,14 +215,6 @@ class ContentView(BaseView):
                 if not self.check_file_exists(content_file_full_path):
                     # without not found file
                     abort(404)
-
-            etag = self.generate_etag(content_file_full_path)
-
-            # read cache content
-            if enable_cache:
-                cache_full_path, cache_exists = self.check_cache(content_file_full_path)
-                if cache_exists:
-                    return send_file(cache_full_path, mimetype="text/html; charset=utf-8")
 
             # read file content
             if is_not_found:
@@ -297,11 +266,7 @@ class ContentView(BaseView):
         g.view_ctx["output"] = render_template(g.view_ctx["template_file_path"], **g.view_ctx)
         run_hook("after_render", "template_file_path")
 
-        # save cache
-        if enable_cache and cache_full_path:
-            self.save_cache(cache_full_path, g.view_ctx["output"])
-
-        return make_content_response(g.view_ctx["output"], status_code, etag)
+        return make_content_response(g.view_ctx["output"], status_code)
 
 
 app = Flask(__name__, static_url_path=STATIC_BASE_URL)

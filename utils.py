@@ -37,7 +37,7 @@ def load_config(app, config_name="config.py"):
     return
 
 
-def make_content_response(output, status_code, etag):
+def make_content_response(output, status_code, etag=None):
     response = make_response(output, status_code)
     response.cache_control.public = "public"
     response.cache_control.max_age = 600
