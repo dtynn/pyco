@@ -26,7 +26,6 @@ def load_config(app, config_name="config.py"):
     app.config.setdefault("HOST", None)
     app.config.setdefault("PORT", None)
     app.config.setdefault("DEBUG", False)
-    app.config.setdefault("ENABLE_CACHE", True)
     app.config.setdefault("SITE_TITLE", "Pyco Site")
     app.config.setdefault("BASE_URL", "/")
     app.config.setdefault("SITE_AUTHOR", "")
