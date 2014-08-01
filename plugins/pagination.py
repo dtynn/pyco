@@ -6,7 +6,6 @@ DEFAULT_PAGINATION_LIMIT = 10
 
 
 def request_url(_, env, ctx):
-    print _, env, ctx
     if env.get("is_site_index") is True:
         request = env.get("request")
         try:
