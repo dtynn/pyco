@@ -178,11 +178,13 @@ class BaseView(MethodView):
     # context
     def init_context(self):
         # env context
-        self.view_ctx["base_url"] = self.config.get("BASE_URL")
+        config = self.config
+        self.view_ctx["config"] = config
+        self.view_ctx["base_url"] = config.get("BASE_URL")
         self.view_ctx["theme_path_for"] = self.theme_path_for
-        self.view_ctx["site_title"] = self.config.get("SITE_TITLE")
-        self.view_ctx["site_author"] = self.config.get("SITE_AUTHOR")
-        self.view_ctx["site_description"] = self.config.get("SITE_DESCRIPTION")
+        self.view_ctx["site_title"] = config.get("SITE_TITLE")
+        self.view_ctx["site_author"] = config.get("SITE_AUTHOR")
+        self.view_ctx["site_description"] = config.get("SITE_DESCRIPTION")
         return
 
     #hook
