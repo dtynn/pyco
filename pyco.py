@@ -185,7 +185,6 @@ class BaseView(MethodView):
 class ContentView(BaseView):
     def get(self, _, is_auto_index=False):
         # init
-        self.init_context()
         status_code = 200
         is_not_found = False
         content_file_full_path = None
@@ -196,6 +195,7 @@ class ContentView(BaseView):
         run_hook("plugins_loaded")
 
         load_config(current_app)
+        self.init_context()
         run_hook("config_loaded")
 
         request_url = request.path
