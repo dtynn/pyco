@@ -21,11 +21,11 @@ CHARSET = "utf8"
 import sys
 sys.path.insert(0, PLUGIN_DIR)
 
-from flask import Flask, current_app, request, abort, render_template, g, make_response, send_file
+from flask import Flask, current_app, request, abort, render_template, g, make_response
 from flask.views import MethodView
 import os
 import re
-from pyco_utils import load_config, load_plugins, make_content_response
+from helpers import load_config, load_plugins, make_content_response
 from collections import defaultdict
 import markdown
 from hashlib import sha1
@@ -152,7 +152,7 @@ class BaseView(MethodView):
     # context
     def init_context(self):
         config = current_app.config
-        g.view_ctx["config"] = config
+        g.config = config
         g.view_ctx["base_url"] = config.get("BASE_URL")
         g.view_ctx["theme_path_for"] = self.theme_path_for
         g.view_ctx["site_title"] = config.get("SITE_TITLE")
@@ -183,7 +183,7 @@ class BaseView(MethodView):
 
 
 class ContentView(BaseView):
-    def get(self, _, is_auto_index=False):
+    def get(self, _):
         # init
         status_code = 200
         is_not_found = False
@@ -199,10 +199,15 @@ class ContentView(BaseView):
         run_hook("config_loaded")
 
         request_url = request.path
+        site_index_url = current_app.config.get("SITE_INDEX_URL")
+        is_site_index = request_url == site_index_url
+        auto_index = is_site_index and current_app.config.get("AUTO_INDEX")
         g.view_ctx["request"] = request
+        g.view_ctx["is_site_index"] = is_site_index
+        g.view_ctx["auto_index"] = auto_index
         run_hook("request_url", "request")
 
-        if not is_auto_index:
+        if not auto_index:
             content_file_full_path = self.get_file_path(request_url)
             # hook before load content
             g.view_ctx["file_path"] = content_file_full_path
@@ -237,14 +242,15 @@ class ContentView(BaseView):
             run_hook("after_parse_content")
 
         # content index
-        g.view_ctx["pages"] = self.get_pages("date", True)
+        pages = self.get_pages("date", True)
+        g.view_ctx["pages"] = filter(lambda x: x["url"] != site_index_url, pages)
         g.view_ctx["current_page"] = defaultdict(str)
         g.view_ctx["prev_page"] = defaultdict(str)
         g.view_ctx["next_page"] = defaultdict(str)
         g.view_ctx["is_front_page"] = False
         g.view_ctx["is_tail_page"] = False
         for page_index, page_data in enumerate(g.view_ctx["pages"]):
-            if is_auto_index:
+            if auto_index:
                 break
             if page_data["path"] == content_file_full_path:
                 g.view_ctx["current_page"] = page_data
@@ -259,7 +265,7 @@ class ContentView(BaseView):
             page_data.pop("path")
         run_hook("get_pages")
 
-        g.view_ctx["template_file_path"] = self.theme_path_for(DEFAULT_INDEX_TMPL_NAME) if is_auto_index \
+        g.view_ctx["template_file_path"] = self.theme_path_for(DEFAULT_INDEX_TMPL_NAME) if auto_index \
             else self.theme_path_for(g.view_ctx["meta"].get("template", DEFAULT_POST_TMPL_NAME))
 
         run_hook("before_render")
@@ -271,11 +277,11 @@ class ContentView(BaseView):
 
 app = Flask(__name__, static_url_path=STATIC_BASE_URL)
 load_config(app)
+app.debug = app.config.get("DEBUG")
 app.static_folder = STATIC_DIR
 app.template_folder = THEME_DIR
-auto_index = app.config.get("AUTO_INDEX")
 app.add_url_rule("/favicon.ico", redirect_to="{}/favicon.ico".format(STATIC_BASE_URL), endpoint="favicon.ico")
-app.add_url_rule("/", defaults={"_": "", "is_auto_index": auto_index}, view_func=ContentView.as_view("index"))
+app.add_url_rule("/", defaults={"_": ""}, view_func=ContentView.as_view("index"))
 app.add_url_rule("/<path:_>", view_func=ContentView.as_view("content"))
 
 
@@ -297,5 +303,4 @@ def errorhandler(err):
 if __name__ == "__main__":
     host = app.config.get("HOST")
     port = app.config.get("PORT")
-    debug = app.config.get("DEBUG")
-    app.run(host=host, port=port, debug=debug)
+    app.run(host=host, port=port, use_reloader=False)

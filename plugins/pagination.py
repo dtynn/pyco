@@ -1,13 +1,13 @@
 #coding=utf-8
 from __future__ import absolute_import
-from flask import g, request, current_app
+from flask import g, request
 
 
 DEFAULT_PAGINATION_LIMIT = 10
 
 
 def request_url():
-    if request.path == "/" and current_app.config.get("AUTO_INDEX"):
+    if g.view_ctx.get("is_site_index") is True:
         try:
             current_page = max(int(request.args.get("page")), 1)
         except (ValueError, TypeError):
@@ -19,7 +19,7 @@ def request_url():
 def get_pages():
     current_page = g.view_ctx.get("pagination_current_page")
     if current_page and isinstance(current_page, int):
-        pagination_limit = current_app.config.get("PAGINATION_LIMIT", DEFAULT_PAGINATION_LIMIT)
+        pagination_limit = g.config.get("PAGINATION_LIMIT", DEFAULT_PAGINATION_LIMIT)
         total = page_count(pagination_limit, len(g.view_ctx["pages"]))
         current_page = min(current_page, total)
         start = (current_page-1)*pagination_limit

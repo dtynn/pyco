@@ -1,7 +1,7 @@
 #coding=utf-8
 from __future__ import absolute_import
 
-DEBUG = False
+DEBUG = True
 PORT = 5000
 AUTO_INDEX = True
 
@@ -14,7 +14,7 @@ SITE_DESCRIPTION = "for test"
 
 POST_DATE_FORMAT = "%Y/%M/%d"
 
-IGNORE_FILES = ["index.md"]
+IGNORE_FILES = []
 
 THEME_NAME = "default"
 PLUGINS = ["pagination"]
