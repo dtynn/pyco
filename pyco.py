@@ -21,17 +21,43 @@ CHARSET = "utf8"
 import sys
 sys.path.insert(0, PLUGIN_DIR)
 
-from flask import Flask, current_app, request, abort, render_template, g, make_response
+from flask import Flask, current_app, request, abort, render_template, make_response
 from flask.views import MethodView
 import os
 import re
-from helpers import load_config, load_plugins, make_content_response
+from helpers import load_config, make_content_response
 from collections import defaultdict
 import markdown
 from hashlib import sha1
+from werkzeug.datastructures import ImmutableDict
+from types import ModuleType
 
 
 class BaseView(MethodView):
+    def __init__(self):
+        super(BaseView, self).__init__()
+        self.plugins = []
+        self.config = current_app.config
+        self.view_ctx = dict()
+        self.view_ctx["tmp"] = dict()
+        self.ext_ctx = dict()
+        return
+
+    def load_plugins(self):
+        loaded_plugins = []
+        plugins = self.config.get("PLUGINS")
+        for module_or_module_name in plugins:
+            if type(module_or_module_name) is ModuleType:
+                loaded_plugins.append(module_or_module_name)
+            elif isinstance(module_or_module_name, basestring):
+                try:
+                    module = __import__(module_or_module_name)
+                except ImportError:
+                    continue
+                loaded_plugins.append(module)
+        self.plugins = loaded_plugins
+        return
+
     # common funcs
     def get_file_path(self, url):
         base_path = os.path.join(CONTENT_DIR, url[1:]).rstrip("/")
@@ -132,11 +158,11 @@ class BaseView(MethodView):
             data["author"] = meta.get("author", "")
             data["date"] = meta.get("date", "")
             data["description"] = meta.get("description", "")
-            g.view_ctx["tmp"]["page_data"] = data
-            g.view_ctx["tmp"]["page_meta"] = meta
+            self.view_ctx["tmp"]["page_data"] = data
+            self.view_ctx["tmp"]["page_meta"] = meta
             self.run_hook("get_page_data")
-            file_data_list.append(g.view_ctx["tmp"]["page_data"])
-        self.pop_item_in_dict(g.view_ctx["tmp"], "page_data", "page_meta")
+            file_data_list.append(self.view_ctx["tmp"]["page_data"])
+        self.pop_item_in_dict(self.view_ctx["tmp"], "page_data", "page_meta")
         if sort_key not in ("title", "date"):
             sort_key = "title"
         return sorted(file_data_list, key=lambda x: u"{}_{}".format(x[sort_key], x["title"]), reverse=reverse)
@@ -151,21 +177,20 @@ class BaseView(MethodView):
 
     # context
     def init_context(self):
-        config = current_app.config
-        g.config = config
-        g.view_ctx["base_url"] = config.get("BASE_URL")
-        g.view_ctx["theme_path_for"] = self.theme_path_for
-        g.view_ctx["site_title"] = config.get("SITE_TITLE")
-        g.view_ctx["site_author"] = config.get("SITE_AUTHOR")
-        g.view_ctx["site_description"] = config.get("SITE_DESCRIPTION")
+        # env context
+        self.view_ctx["base_url"] = self.config.get("BASE_URL")
+        self.view_ctx["theme_path_for"] = self.theme_path_for
+        self.view_ctx["site_title"] = self.config.get("SITE_TITLE")
+        self.view_ctx["site_author"] = self.config.get("SITE_AUTHOR")
+        self.view_ctx["site_description"] = self.config.get("SITE_DESCRIPTION")
         return
 
     #hook
     def run_hook(self, hook_name, *cleanup_keys):
-        for plugin_module in g.plugins:
+        for plugin_module in self.plugins:
             func = plugin_module.__dict__.get(hook_name)
             if callable(func):
-                func()
+                func(self.config, ImmutableDict(self.view_ctx), self.ext_ctx)
         self.cleanup_context(*cleanup_keys)
         return
 
@@ -178,7 +203,7 @@ class BaseView(MethodView):
         return
 
     def cleanup_context(self, *keys):
-        self.pop_item_in_dict(g.view_ctx, *keys)
+        self.pop_item_in_dict(self.view_ctx, *keys)
         return
 
 
@@ -191,7 +216,7 @@ class ContentView(BaseView):
         run_hook = self.run_hook
 
         # load
-        load_plugins()
+        self.load_plugins()
         run_hook("plugins_loaded")
 
         load_config(current_app)
@@ -202,21 +227,21 @@ class ContentView(BaseView):
         site_index_url = current_app.config.get("SITE_INDEX_URL")
         is_site_index = request_url == site_index_url
         auto_index = is_site_index and current_app.config.get("AUTO_INDEX")
-        g.view_ctx["request"] = request
-        g.view_ctx["is_site_index"] = is_site_index
-        g.view_ctx["auto_index"] = auto_index
+        self.view_ctx["request"] = request
+        self.view_ctx["is_site_index"] = is_site_index
+        self.view_ctx["auto_index"] = auto_index
         run_hook("request_url", "request")
 
         if not auto_index:
             content_file_full_path = self.get_file_path(request_url)
             # hook before load content
-            g.view_ctx["file_path"] = content_file_full_path
+            self.view_ctx["file_path"] = content_file_full_path
             run_hook("before_load_content")
             # if not found
             if content_file_full_path is None:
                 is_not_found = True
                 status_code = 404
-                content_file_full_path = g.view_ctx["not_found_file_path"] = self.content_not_found_full_path
+                content_file_full_path = self.view_ctx["not_found_file_path"] = self.content_not_found_full_path
                 if not self.check_file_exists(content_file_full_path):
                     # without not found file
                     abort(404)
@@ -225,54 +250,57 @@ class ContentView(BaseView):
             if is_not_found:
                 run_hook("before_404_load_content")
             with open(content_file_full_path, "r") as f:
-                g.view_ctx["file_content"] = f.read().decode(CHARSET)
+                self.view_ctx["file_content"] = f.read().decode(CHARSET)
             if is_not_found:
                 run_hook("after_404_load_content", "not_found_file_path")
             run_hook("after_load_content", "file_path")
 
             # parse file content
-            meta_string, content_string = self.content_splitter(g.view_ctx["file_content"])
+            meta_string, content_string = self.content_splitter(self.view_ctx["file_content"])
 
-            g.view_ctx["meta"] = self.parse_file_meta(meta_string)
+            self.view_ctx["meta"] = self.parse_file_meta(meta_string)
             run_hook("file_meta")
 
-            g.view_ctx["content_string"] = content_string
+            self.view_ctx["content_string"] = content_string
             run_hook("before_parse_content", "content_string")
-            g.view_ctx["content"] = markdown.markdown(content_string, extensions=["fenced_code", "codehilite"])
+            self.view_ctx["content"] = markdown.markdown(content_string, extensions=["fenced_code", "codehilite"])
             run_hook("after_parse_content")
 
         # content index
         pages = self.get_pages("date", True)
-        g.view_ctx["pages"] = filter(lambda x: x["url"] != site_index_url, pages)
-        g.view_ctx["current_page"] = defaultdict(str)
-        g.view_ctx["prev_page"] = defaultdict(str)
-        g.view_ctx["next_page"] = defaultdict(str)
-        g.view_ctx["is_front_page"] = False
-        g.view_ctx["is_tail_page"] = False
-        for page_index, page_data in enumerate(g.view_ctx["pages"]):
+        self.view_ctx["pages"] = filter(lambda x: x["url"] != site_index_url, pages)
+        self.view_ctx["current_page"] = defaultdict(str)
+        self.view_ctx["prev_page"] = defaultdict(str)
+        self.view_ctx["next_page"] = defaultdict(str)
+        self.view_ctx["is_front_page"] = False
+        self.view_ctx["is_tail_page"] = False
+        for page_index, page_data in enumerate(self.view_ctx["pages"]):
             if auto_index:
                 break
             if page_data["path"] == content_file_full_path:
-                g.view_ctx["current_page"] = page_data
+                self.view_ctx["current_page"] = page_data
                 if page_index == 0:
-                    g.view_ctx["is_front_page"] = True
+                    self.view_ctx["is_front_page"] = True
                 else:
-                    g.view_ctx["prev_page"] = g.view_ctx["pages"][page_index-1]
-                if page_index == len(g.view_ctx["pages"]) - 1:
-                    g.view_ctx["is_tail_page"] = True
+                    self.view_ctx["prev_page"] = self.view_ctx["pages"][page_index-1]
+                if page_index == len(self.view_ctx["pages"]) - 1:
+                    self.view_ctx["is_tail_page"] = True
                 else:
-                    g.view_ctx["next_page"] = g.view_ctx["pages"][page_index+1]
+                    self.view_ctx["next_page"] = self.view_ctx["pages"][page_index+1]
             page_data.pop("path")
         run_hook("get_pages")
 
-        g.view_ctx["template_file_path"] = self.theme_path_for(DEFAULT_INDEX_TMPL_NAME) if auto_index \
-            else self.theme_path_for(g.view_ctx["meta"].get("template", DEFAULT_POST_TMPL_NAME))
+        self.view_ctx["template_file_path"] = self.theme_path_for(DEFAULT_INDEX_TMPL_NAME) if auto_index \
+            else self.theme_path_for(self.view_ctx["meta"].get("template", DEFAULT_POST_TMPL_NAME))
 
         run_hook("before_render")
-        g.view_ctx["output"] = render_template(g.view_ctx["template_file_path"], **g.view_ctx)
+        self.view_ctx.update(self.ext_ctx)
+        self.view_ctx["output"] = render_template(self.view_ctx["template_file_path"], **self.view_ctx)
         run_hook("after_render", "template_file_path")
 
-        return make_content_response(g.view_ctx["output"], status_code)
+        if "output" in self.ext_ctx:
+            self.view_ctx["output"] = self.ext_ctx["output"]
+        return make_content_response(self.view_ctx["output"], status_code)
 
 
 app = Flask(__name__, static_url_path=STATIC_BASE_URL)
@@ -283,14 +311,6 @@ app.template_folder = THEME_DIR
 app.add_url_rule("/favicon.ico", redirect_to="{}/favicon.ico".format(STATIC_BASE_URL), endpoint="favicon.ico")
 app.add_url_rule("/", defaults={"_": ""}, view_func=ContentView.as_view("index"))
 app.add_url_rule("/<path:_>", view_func=ContentView.as_view("content"))
-
-
-@app.before_request
-def injection():
-    g.plugins = []
-    g.view_ctx = dict()
-    g.view_ctx["tmp"] = dict()
-    return
 
 
 @app.errorhandler(Exception)

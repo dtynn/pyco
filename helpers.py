@@ -1,23 +1,6 @@
 #coding=utf-8
 from __future__ import absolute_import
-from flask import current_app, g, make_response
-from types import ModuleType
-
-
-def load_plugins():
-    loaded_plugins = []
-    plugins = current_app.config.get("PLUGINS")
-    for module_or_module_name in plugins:
-        if type(module_or_module_name) is ModuleType:
-            loaded_plugins.append(module_or_module_name)
-        elif isinstance(module_or_module_name, basestring):
-            try:
-                module = __import__(module_or_module_name)
-            except ImportError:
-                continue
-            loaded_plugins.append(module)
-    g.plugins = loaded_plugins
-    return
+from flask import make_response
 
 
 def load_config(app, config_name="config.py"):

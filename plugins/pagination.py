@@ -1,34 +1,35 @@
 #coding=utf-8
 from __future__ import absolute_import
-from flask import g, request
 
 
 DEFAULT_PAGINATION_LIMIT = 10
 
 
-def request_url():
-    if g.view_ctx.get("is_site_index") is True:
+def request_url(_, env, ctx):
+    print _, env, ctx
+    if env.get("is_site_index") is True:
+        request = env.get("request")
         try:
             current_page = max(int(request.args.get("page")), 1)
         except (ValueError, TypeError):
             current_page = 1
-        g.view_ctx["pagination_current_page"] = current_page
+        ctx["pagination_current_page"] = current_page
     return
 
 
-def get_pages():
-    current_page = g.view_ctx.get("pagination_current_page")
+def get_pages(cfg, env, ctx):
+    current_page = ctx.get("pagination_current_page")
     if current_page and isinstance(current_page, int):
-        pagination_limit = g.config.get("PAGINATION_LIMIT", DEFAULT_PAGINATION_LIMIT)
-        total = page_count(pagination_limit, len(g.view_ctx["pages"]))
+        pagination_limit = cfg.get("PAGINATION_LIMIT", DEFAULT_PAGINATION_LIMIT)
+        total = page_count(pagination_limit, len(env["pages"]))
         current_page = min(current_page, total)
         start = (current_page-1)*pagination_limit
         end = current_page*pagination_limit
-        g.view_ctx["pages"] = g.view_ctx["pages"][start:end]
-        g.view_ctx["pagination"] = dict()
-        g.view_ctx["pagination"]["current_page"] = current_page
-        g.view_ctx["pagination"]["has_prev_page"] = current_page > 1
-        g.view_ctx["pagination"]["has_next_page"] = current_page < total
+        ctx["pages"] = env["pages"][start:end]
+        ctx["pagination"] = dict()
+        ctx["pagination"]["current_page"] = current_page
+        ctx["pagination"]["has_prev_page"] = current_page > 1
+        ctx["pagination"]["has_next_page"] = current_page < total
     return
 
 
