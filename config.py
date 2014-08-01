@@ -5,8 +5,6 @@ DEBUG = True
 PORT = 5000
 AUTO_INDEX = True
 
-ENABLE_CACHE = True
-
 SITE_TITLE = "TEST"
 BASE_URL = "/"
 SITE_AUTHOR = "DTynn"
