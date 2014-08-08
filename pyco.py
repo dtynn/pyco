@@ -27,10 +27,24 @@ import os
 import re
 from helpers import load_config, make_content_response
 from collections import defaultdict
-import markdown
 from hashlib import sha1
 from werkzeug.datastructures import ImmutableDict
 from types import ModuleType
+
+import misaka
+from pygments import highlight
+from pygments.lexers import get_lexer_by_name
+from pygments.formatters.html import HtmlFormatter
+
+
+class BleepRenderer(misaka.HtmlRenderer, misaka.SmartyPants):
+    @staticmethod
+    def block_code(text, lang):
+        if not lang:
+            return '\n<pre><code>%s</code></pre>\n' % text.strip()
+        lexer = get_lexer_by_name(lang, stripall=True)
+        formatter = HtmlFormatter(style="vim", title="%s code" % lang, cssclass="codehilite")
+        return highlight(text, lexer, formatter)
 
 
 class BaseView(MethodView):
@@ -110,7 +124,12 @@ class BaseView(MethodView):
 
     @staticmethod
     def parse_content(content_string):
-        return markdown.markdown(content_string, extensions=["fenced_code", "codehilite"])
+        extensions = misaka.EXT_NO_INTRA_EMPHASIS | misaka.EXT_FENCED_CODE | misaka.EXT_AUTOLINK | \
+            misaka.EXT_LAX_HTML_BLOCKS | misaka.EXT_TABLES
+        flags = misaka.HTML_TOC | misaka.HTML_USE_XHTML | misaka.HTML_HARD_WRAP
+        render = BleepRenderer(flags=flags)
+        md = misaka.Markdown(render, extensions=extensions)
+        return md.render(content_string)
 
     # cache
     @staticmethod
@@ -265,7 +284,7 @@ class ContentView(BaseView):
 
             self.view_ctx["content_string"] = content_string
             run_hook("before_parse_content", "content_string")
-            self.view_ctx["content"] = markdown.markdown(content_string, extensions=["fenced_code", "codehilite"])
+            self.view_ctx["content"] = self.parse_content(content_string)
             run_hook("after_parse_content")
 
         # content index
